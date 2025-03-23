@@ -12,17 +12,44 @@
 #include <fstream>
 #include <regex>
 #include <stdio.h>
-
+#include <chrono>
 #define PBSTR "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
 #define PBWIDTH 60
-
-inline void printProgress(float percentage) {
+int last_percent = -1;
+std::chrono::time_point<std::chrono::system_clock> each_percent_start[100];
+inline void printProgress(float percentage)
+{
   int val = (int)(percentage * 100);
+  if (val == last_percent)
+    return;
+  each_percent_start[val] = std::chrono::system_clock::now();
+  float time_elapsed = (std::chrono::duration_cast<std::chrono::milliseconds>(
+                            each_percent_start[val] - each_percent_start[0]))
+                           .count() /
+                       1000.f;
+  float total_time_predict;
+  if (val <= 3)
+  {
+    total_time_predict = time_elapsed * 100 / val;
+  }
+  else
+  {
+    float each_time_latest3 =
+        (std::chrono::duration_cast<std::chrono::milliseconds>(
+             each_percent_start[val] - each_percent_start[val - 3]))
+            .count() /
+        1000.f / 3;
+    total_time_predict = each_time_latest3 * (100 - val);
+    total_time_predict += time_elapsed;
+  }
+  last_percent = val;
   int lpad = (int)(percentage * PBWIDTH);
   int rpad = PBWIDTH - lpad;
-  printf("\r%3d%% [%.*s%*s]", val, lpad, PBSTR, rpad, "");
+  printf("\r%3d%% [%.*s%*s] %.2fs/%.2fs%s", val, lpad, PBSTR, rpad, "",
+         time_elapsed, total_time_predict, "                          ");
   fflush(stdout);
 }
+
 
 int main(int argc, char **argv) {
   const std::string sceneDir = std::string(argv[1]);
