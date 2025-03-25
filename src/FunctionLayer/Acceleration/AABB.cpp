@@ -50,7 +50,7 @@ bool AABB::Overlap(const AABB &other) const
 
 bool AABB::RayIntersect(const Ray &ray, float *tMin, float *tMax) const
 {
-  //* todo 实现AABB与光线求交
+  // 实现AABB与光线求交
   // 遍历xyz三个轴
   float xMin = pMin[0], xMax = pMax[0],
         yMin = pMin[1], yMax = pMax[1],
