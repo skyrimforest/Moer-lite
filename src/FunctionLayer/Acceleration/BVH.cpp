@@ -1,90 +1,32 @@
 #include "BVH.h"
+#include "Logger.h"
 #include "vector"
 #include "algorithm"
 #include <fstream>
 
-void BVH::showLog(std::string comment, int level = 0, const std::string &file = __FILE__, int line = __LINE__)
-{
-    //  DEBUG = 0,
-    // INFO = 1,
-    // WARNING = 2,
-    // ERROR = 3
-    int debugMode = 1;
-
-    if (debugMode == 0)
-    {
-        return;
-    }
-
-    const std::string COLOR_RESET = "\033[0m";
-    const std::string COLOR_RED = "\033[31m";
-    const std::string COLOR_GREEN = "\033[32m";
-    const std::string COLOR_YELLOW = "\033[33m";
-    const std::string COLOR_BLUE = "\033[34m";
-    const std::string COLOR_MAGENTA = "\033[35m";
-    const std::string COLOR_CYAN = "\033[36m";
-
-    std::string color;
-    switch (level)
-    {
-    case 0:
-        color = COLOR_CYAN;
-        break;
-    case 1:
-        color = COLOR_GREEN;
-        break;
-    case 2:
-        color = COLOR_YELLOW;
-        break;
-    case 3:
-        color = COLOR_RED;
-        break;
-    default:
-        color = COLOR_RESET;
-    }
-
-    std::cout << color << "[" << file << ":" << line << "] " << comment << COLOR_RESET << std::endl;
-    // 输出到文件
-    std::ofstream logFile("log.txt", std::ios::app); // 以追加模式打开文件
-    if (logFile.is_open())
-    {
-        // 文件中不包含颜色控制字符
-        logFile << "[" << file << ":" << line << "] " << comment << std::endl;
-        logFile.close();
-    }
-    else
-    {
-        std::cerr << "无法打开日志文件 log.txt" << std::endl;
-    }
-}
-
-// 重载 showLog 函数，使用可变参数模板
-template <typename... Args>
-void showLogMulComments(int level = 0, const std::string &file = __FILE__, int line = __LINE__, Args &&...args)
-{
-    int debugMode = 1;
-
-    if (debugMode == 0)
-    {
-        return;
-    }
-
-    std::ostringstream oss;
-    (oss << ... << args);
-    std::string comment = oss.str();
-
-    BVH::showLog(comment, level, file, line);
-}
 BVH::BVHNode *BVH::buildRecursive(int start, int end, std::vector<std::shared_ptr<Shape>> &orderedshapes, std::vector<ShapeInfo> &shapeInfo)
 {
-    showLogMulComments(0, __FILE__, __LINE__, "开始建立BVH树");
+    if (end - start <= 0)
+    {
+        Logger::showLogMulComments(0, __FILE__, __LINE__, "区间不正常,停止运行!!!此时开始和结尾为", start, " ", end);
+        return nullptr;
+    }
+
+    Logger::showLogMulComments(0, __FILE__, __LINE__, "开始建立BVH树");
     BVHNode *node = new BVHNode();
     AABB totalBounds;
-    showLogMulComments(0, __FILE__, __LINE__, "开始创建包围盒");
+    Logger::showLogMulComments(0, __FILE__, __LINE__, "开始创建包围盒");
 
     for (int i = start; i < end; i++)
         totalBounds.Expand(shapeInfo[i].bounds);
-    showLogMulComments(0, __FILE__, __LINE__, "完成包围盒合并");
+
+    if (fabs(totalBounds.pMax[0]) > 1e10)
+    {
+        Logger::showLogMulComments(0, __FILE__, __LINE__, "数字不正常,停止运行!!!此时开始和结尾为", start, " ", end);
+        return nullptr;
+    }
+    // Logger::showLogMulComments(0, __FILE__, __LINE__, "完成包围盒合并,最小值结果为", totalBounds.pMin[0], totalBounds.pMin[1], totalBounds.pMin[2]);
+    // Logger::showLogMulComments(0, __FILE__, __LINE__, "完成包围盒合并,最大值结果为", totalBounds.pMax[0], totalBounds.pMax[1], totalBounds.pMax[2]);
 
     node->boundingBox = totalBounds;
     auto normalStop = [&](int upperbound) -> bool
@@ -98,42 +40,52 @@ BVH::BVHNode *BVH::buildRecursive(int start, int end, std::vector<std::shared_pt
         // 逐渐添加有序序列 在子节点内部是有序的
         node->firstShapeOffset = orderedshapes.size();
         node->nShape = end - start;
+        nodeCount++;
+        leafCount++;
         // 放置叶子节点时记录顺序
         for (int i = start; i < end; i++)
         {
             orderedshapes.push_back(shapes[shapeInfo[i].geomId]);
         }
     };
-    showLogMulComments(0, __FILE__, __LINE__, "开始判断是索引还是叶子节点");
+    // Logger::showLogMulComments(0, __FILE__, __LINE__, "开始判断是索引还是叶子节点");
 
     if (normalStop(1))
     {
         // 叶子节点
-        showLogMulComments(0, __FILE__, __LINE__, "开始创建叶子结点");
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "开始创建叶子结点");
         normalOpe();
-        showLogMulComments(0, __FILE__, __LINE__, "创建了叶子结点");
+        Logger::showLogMulComments(0, __FILE__, __LINE__, "创建了叶子结点");
     }
     else
     {
-        showLogMulComments(0, __FILE__, __LINE__, "开始创建索引结点");
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "开始创建索引结点");
 
         // 非叶子节点，选择分割轴 此时shapeInfo已经排序了
         // 记录本节点中心点形成的总包围盒
         AABB currentCenterBounds;
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "查看当前区间", start, " ", end);
+
         for (int i = start; i < end; i++)
+        {
+            // Logger::showLogMulComments(0, __FILE__, __LINE__, "查看当前节点", i, "的中点坐标", shapeInfo[i].center[0], " ", shapeInfo[i].center[1], " ", shapeInfo[i].center[2]);
             currentCenterBounds.Expand(shapeInfo[i].center);
+        }
+
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "查看中点包围盒", currentCenterBounds.pMax[0], "和", currentCenterBounds.pMin[0]);
+
         // 求切分轴 求切分点
-        showLogMulComments(0, __FILE__, __LINE__, "开始寻找最佳切分轴和轴上的最佳切分点");
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "开始寻找最佳切分轴和轴上的最佳切分点");
         BVH::SplitInfo target = getSplitInfo(shapeInfo, currentCenterBounds, {start, end}, longestExtentSplit);
         int splitPoint = target.splitPoint;
         int splitAxis = target.splitAxis;
         node->splitAxis = splitAxis;
-        showLogMulComments(0, __FILE__, __LINE__, "计算结束,点为:", splitPoint, "轴为:", splitAxis);
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "计算结束,点为:", splitPoint, "轴为:", splitAxis);
 
         // 无法划分的情况
-        if (splitAxis == -1)
+        if (node->splitAxis == -1)
         {
-            showLogMulComments(0, __FILE__, __LINE__, "无法划分! 开始重新划入子节点...");
+            // Logger::showLogMulComments(0, __FILE__, __LINE__, "无法划分! 开始重新划入子节点...");
             node->firstShapeOffset = orderedshapes.size();
             node->nShape = end - start;
 
@@ -141,17 +93,19 @@ BVH::BVHNode *BVH::buildRecursive(int start, int end, std::vector<std::shared_pt
             {
                 orderedshapes.push_back(shapes[shapeInfo[i].geomId]);
             }
-            showLogMulComments(0, __FILE__, __LINE__, "重新划分结束...");
+            // Logger::showLogMulComments(0, __FILE__, __LINE__, "重新划分结束...");
         }
 
         // 递归构建左右子树
-        if (splitPoint != -1)
+        if (node->splitAxis != -1)
         {
-            showLogMulComments(0, __FILE__, __LINE__, "开始递归构建");
+            // Logger::showLogMulComments(0, __FILE__, __LINE__, "开始递归构建");
 
             node->childList.push_back(buildRecursive(start, splitPoint, orderedshapes, shapeInfo));
             node->childList.push_back(buildRecursive(splitPoint, end, orderedshapes, shapeInfo));
         }
+        nodeCount++;
+        indexCount++;
     }
     return node;
 }
@@ -182,17 +136,19 @@ BVH::SplitInfo BVH::staticSplit(std::vector<BVH::ShapeInfo> &shapeInfo, AABB &ce
 // 最长中点切分
 BVH::SplitInfo BVH::longestExtentSplit(std::vector<BVH::ShapeInfo> &shapeInfo, AABB &centerBound, std::pair<int, int> interval)
 {
-    showLogMulComments(0, __FILE__, __LINE__, "进入最长中点切分方法");
-
+    // Logger::showLogMulComments(0, __FILE__, __LINE__, "进入最长中点切分方法");
     // 求切分轴
     int dim = -1;
-    double maxD = 0;
+    double maxD = -FLT_MAX;
     for (int i = 0; i < 3; i++)
     {
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "当前轴为", i, "当前centerBound的值为", centerBound.pMax[i], "和", centerBound.pMin[i]);
         double D = centerBound.pMax[i] - centerBound.pMin[i];
         if (maxD < D)
             maxD = D, dim = i;
     }
+    // Logger::showLogMulComments(0, __FILE__, __LINE__, "计算结束,得到的dim为", dim);
+
     int splitPoint = -1;
     int splitAxis = -1;
     int start = interval.first, end = interval.second;
@@ -208,7 +164,7 @@ BVH::SplitInfo BVH::longestExtentSplit(std::vector<BVH::ShapeInfo> &shapeInfo, A
     BVH::SplitInfo result = {};
     result.splitAxis = splitAxis;
     result.splitPoint = splitPoint;
-    showLogMulComments(0, __FILE__, __LINE__, "退出最长中点切分方法,计算结果:轴为", splitAxis, "点为", splitPoint);
+    Logger::showLogMulComments(0, __FILE__, __LINE__, "退出最长中点切分方法,计算结果:轴为", splitAxis, "点为", splitPoint);
 
     return result;
 }
@@ -271,10 +227,6 @@ void BVH::build()
     // shapes是父类自带的 表示场景中所有的几何体
     for (const auto &shape : shapes)
     {
-        //* 自行实现的加速结构请务必对每个shape调用该方法，以保证TriangleMesh构建内部加速结构
-        //* 由于使用embree时，TriangleMesh::getAABB不会被调用，因此出于性能考虑我们不在TriangleMesh
-        //* 的构造阶段计算其AABB，因此当我们将TriangleMesh的AABB计算放在TriangleMesh::initInternalAcceleration中
-        //* 所以请确保在调用TriangleMesh::getAABB之前先调用TriangleMesh::initInternalAcceleration
         shape->initInternalAcceleration();
         sceneBox.Expand(shape->getAABB());
 
@@ -282,10 +234,12 @@ void BVH::build()
     }
     // 创建待排序数组 初始为空 留待填充
     std::vector<std::shared_ptr<Shape>> orderedshapes;
-    std::vector<std::shared_ptr<Shape>> boundingList(shapes.size());
+    // Logger::showLogMulComments(0, __FILE__, __LINE__, "求得的shapeinfo", shapeInfoList[2].geomId, " ", shapeInfoList[3].center[0]);
 
-    // 递归构建
+    // 递归构建 是从 [0,n)
     root = buildRecursive(0, shapes.size(), orderedshapes, shapeInfoList);
+    Logger::showLogMulComments(0, __FILE__, __LINE__, "构建结束,当前节点总个数为:", nodeCount, ",索引节点个数为:", indexCount, ",叶子节点个数为:", leafCount);
+
     shapes.swap(orderedshapes);
 }
 // todo 扁平化树进行求交
@@ -314,6 +268,8 @@ void BVH::build()
 bool BVH::rayIntersect(Ray &ray, int *geomID, int *primID, float *u, float *v) const
 {
     // 完成BVH求交
+    Logger::showLogMulComments(0, __FILE__, __LINE__, "开始进行BVH的求交");
+
     Point3f origin = ray.origin;
     Vector3f direction = ray.direction;
     Ray R(ray);
@@ -321,21 +277,35 @@ bool BVH::rayIntersect(Ray &ray, int *geomID, int *primID, float *u, float *v) c
     // int currentNode = 0;
     std::function<bool(BVHNode *)> traverse = [&](BVHNode *node) -> bool
     {
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "进入DFS内部");
         Vector3f invDir(1 / ray.direction[0], 1 / ray.direction[1], 1 / ray.direction[2]);
         bool isNegDir[3] = {ray.direction[0] < 0, ray.direction[1] < 0, ray.direction[2] < 0};
         bool flag = false;
         // 没东西直接返回
+
         if (!node)
+        {
+            // Logger::showLogMulComments(0, __FILE__, __LINE__, "节点为空,结束DFS遍历");
             return flag;
+        }
+        Logger::showLogMulComments(0, __FILE__, __LINE__, "求交前本节点包围盒最小值为:", node->boundingBox.pMin[0], " ", node->boundingBox.pMin[1], " ", node->boundingBox.pMin[2]);
+        Logger::showLogMulComments(0, __FILE__, __LINE__, "求交前本节点包围盒最大值为:", node->boundingBox.pMax[0], " ", node->boundingBox.pMax[1], " ", node->boundingBox.pMax[2]);
+        if (fabs(node->boundingBox.pMax[0]) > 1e10)
+        {
+            Logger::showLogMulComments(0, __FILE__, __LINE__, "数字不正常,停止运行!!!此时节点信息为", node->firstShapeOffset, " ", node->nShape, " ", node->splitAxis);
+            return false;
+        }
         // 相交了
         if (node->boundingBox.RayIntersect(R))
         {
-
+            // Logger::showLogMulComments(0, __FILE__, __LINE__, "灯光和盒子相交");
             if (node->splitAxis == -1)
             {
                 // 是子节点
-                if (root->nShape > 0)
+                // Logger::showLogMulComments(0, __FILE__, __LINE__, "是子节点,开始查找内部形状");
+                if (node->nShape > 0)
                 {
+
                     for (int i = 0; i < node->nShape; i++)
                     {
                         int idx = node->firstShapeOffset + i;
@@ -343,11 +313,13 @@ bool BVH::rayIntersect(Ray &ray, int *geomID, int *primID, float *u, float *v) c
                         if (!shapes.empty())
                             flag = shapes[idx]->rayIntersectShape(R, primID, u, v);
                     }
+                    // Logger::showLogMulComments(0, __FILE__, __LINE__, "在shape", node->firstShapeOffset, "上是否产生了交点呢:", flag);
                 }
                 else
                 {
                     // 如果是多叉树需要按照交点距离排序再遍历
                     // 是索引节点
+                    // Logger::showLogMulComments(0, __FILE__, __LINE__, "是索引节点,开始递归查找");
                     if (isNegDir[node->splitAxis])
                     {
                         traverse(node->childList[0]);
@@ -360,9 +332,23 @@ bool BVH::rayIntersect(Ray &ray, int *geomID, int *primID, float *u, float *v) c
                     }
                 }
             }
-            // 没相交啥也不用干
         }
+        // 没相交啥也不用干
+        // Logger::showLogMulComments(0, __FILE__, __LINE__, "没相交,退出DFS了");
+
         return flag;
     };
-    return traverse(root);
+
+    //* 有交点，需要填充intersection数据结构
+    // ray.tFar = rtcRayHit.ray.tfar;
+    // *geomID = rtcRayHit.hit.geomID;
+    // *primID = rtcRayHit.hit.primID;
+    // *u = rtcRayHit.hit.u;
+    // *v = rtcRayHit.hit.v;
+
+    Logger::showLogMulComments(0, __FILE__, __LINE__, "开始进行DFS遍历");
+    bool flag = traverse(root);
+    Logger::showLogMulComments(0, __FILE__, __LINE__, "结束DFS遍历");
+
+    return flag;
 }

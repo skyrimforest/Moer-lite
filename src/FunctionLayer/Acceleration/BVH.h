@@ -11,8 +11,6 @@ public:
         int splitAxis;
         // 索引节点存储后代
         std::vector<BVHNode *> childList;
-        // 索引节点存储包围盒
-        std::vector<std::shared_ptr<Shape>> boundingList;
         // 包围盒
         AABB boundingBox;
         // 叶子结点存储开始
@@ -48,6 +46,13 @@ public:
     BVH() = default;
     void build() override;
     bool rayIntersect(Ray &ray, int *geomID, int *primID, float *u, float *v) const override;
+
+    // 记录节点个数
+    int nodeCount = 0;
+    // 记录索引节点个数
+    int indexCount = 0;
+    // 记录叶子结点个数
+    int leafCount = 0;
 
     // 递归构造BVH树
     BVHNode *buildRecursive(int start, int end, std::vector<std::shared_ptr<Shape>> &orderedshapes, std::vector<ShapeInfo> &shapeInfo);
