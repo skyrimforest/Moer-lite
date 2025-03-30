@@ -10,7 +10,9 @@ public:
         // 叶子结点 -1 XYZ对应0 1 2
         int splitAxis;
         // 索引节点存储后代
-        std::vector<BVHNode *> childList;
+        std::vector<BVHNode *> childList = {nullptr, nullptr};
+        BVHNode *leftChild;
+        BVHNode *rightChild;
         // 包围盒
         AABB boundingBox;
         // 叶子结点存储开始
@@ -37,10 +39,10 @@ public:
         AABB boundingBox;
         union
         {
-            int firstdEntityOffset; // for leaves to enumerate
-            int secondChildOrder;   // for interior nodes to traverse
+            int firstdShapeOffset; // for leaves to enumerate
+            int secondChildOrder;  // for interior nodes to traverse
         };
-        int nEntites = 0;
+        int nShape = 0;
         int splitAxis;
     };
     BVH() = default;
@@ -53,22 +55,24 @@ public:
     int indexCount = 0;
     // 记录叶子结点个数
     int leafCount = 0;
-
+    // 平整的树便于遍历
+    std::vector<LinearBvhNode> linearBvhNodes;
     // 递归构造BVH树
     BVHNode *buildRecursive(int start, int end, std::vector<std::shared_ptr<Shape>> &orderedshapes, std::vector<ShapeInfo> &shapeInfo);
     // 接口函数，接收回调函数指针 用于排序并返回切分点和轴
     using SplitCallback = SplitInfo (*)(std::vector<ShapeInfo> &, AABB &, std::pair<int, int> interval);
     SplitInfo getSplitInfo(std::vector<ShapeInfo> &shapeInfo, AABB &centerBound, std::pair<int, int> interval, SplitCallback callback);
     // DFS序展开Bvh
-    void Flatten(std::shared_ptr<BVHNode> node, int &dfsOrder);
+    void Flatten(BVHNode *node, int &dfsOrder);
+    
+    bool traverse(BVH::BVHNode *node, Ray &R,int *geomID, int *primID, float *u, float *v) const;
+
     static BVH::SplitInfo sahSplit(std::vector<BVH::ShapeInfo> &shapeInfo, AABB &centerBound, std::pair<int, int> interval);
     static BVH::SplitInfo equalShapeSplit(std::vector<BVH::ShapeInfo> &shapeInfo, AABB &centerBound, std::pair<int, int> interval);
     static BVH::SplitInfo longestExtentSplit(std::vector<BVH::ShapeInfo> &shapeInfo, AABB &centerBound, std::pair<int, int> interval);
     static BVH::SplitInfo staticSplit(std::vector<BVH::ShapeInfo> &shapeInfo, AABB &centerBound, std::pair<int, int> interval);
-    static void showLog(std::string comment, int level, const std::string &file, int line);
 
 protected:
-    std::vector<LinearBvhNode> linearBvhNodes;
     static constexpr int bvhLeafMaxSize = 64;
     BVHNode *root;
 };

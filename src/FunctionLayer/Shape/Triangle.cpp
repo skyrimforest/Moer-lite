@@ -51,7 +51,6 @@ bool Triangle::rayIntersectShape(Ray &ray, int *primID, float *u,
     *primID = this->primID;
     *u = u_;
     *v = v_;
-
     return true;
   }
   return false;
@@ -110,7 +109,7 @@ bool TriangleMesh::rayIntersectShape(Ray &ray, int *primID, float *u,
 void TriangleMesh::fillIntersection(float distance, int primID, float u,
                                     float v, Intersection *intersection) const
 {
-  //* todo 填充光线与三角网格求交得到的交点信息
+  //* 填充光线与三角网格求交得到的交点信息
   intersection->distance = distance;
   intersection->shape = this;
   //* 在三角形内部用插值计算交点、法线以及纹理坐标
@@ -198,19 +197,26 @@ void TriangleMesh::fillIntersection(float distance, int primID, float u,
 
 void TriangleMesh::initInternalAcceleration()
 {
+  // 1. 创建加速结构实例（如BVH/KD-Tree）
   acceleration = Acceleration::createAcceleration();
+
+  // 2. 遍历所有三角形，将每个三角形加入加速结构
   int primCount = meshData->faceCount;
   for (int primID = 0; primID < primCount; ++primID)
   {
-    int vtx0Idx = meshData->faceBuffer[primID][0].vertexIndex,
-        vtx1Idx = meshData->faceBuffer[primID][1].vertexIndex,
-        vtx2Idx = meshData->faceBuffer[primID][2].vertexIndex;
+    // 获取三角形三个顶点的索引
+    int vtx0Idx = meshData->faceBuffer[primID][0].vertexIndex;
+    int vtx1Idx = meshData->faceBuffer[primID][1].vertexIndex;
+    int vtx2Idx = meshData->faceBuffer[primID][2].vertexIndex;
+
+    // 创建Triangle对象并绑定到加速结构
     std::shared_ptr<Triangle> triangle =
         std::make_shared<Triangle>(primID, vtx0Idx, vtx1Idx, vtx2Idx, this);
     acceleration->attachShape(triangle);
   }
+  // 3. 构建加速结构（如BVH的分割和平衡）
   acceleration->build();
-  // TriangleMesh的包围盒就是其内部加速结构的包围盒
+  // 4. 用加速结构的包围盒作为整个网格的包围盒
   boundingBox = acceleration->boundingBox;
 }
 REGISTER_CLASS(TriangleMesh, "triangle")

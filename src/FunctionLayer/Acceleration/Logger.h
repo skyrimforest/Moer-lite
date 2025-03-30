@@ -9,7 +9,7 @@
 class Logger
 {
 public:
-    static const int debugMode = 1;
+    static const int debugMode = 0;
 
     static void showLog(std::string comment, int level = 0, const std::string &file = __FILE__, int line = __LINE__);
 
